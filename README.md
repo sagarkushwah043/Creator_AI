@@ -3,7 +3,7 @@
 Creator AI is a powerful, modern web platform built for **creators** to easily create, manage, and enhance their content.  
 It combines AI-assisted tools, media management, and beautiful UI components — all in one intuitive dashboard.
 
-🚀 **Live Demo:** [View Creator AI Demo](https://your-demo-link.com)
+🚀 **Live Demo:** [View Creator AI Demo]([https://your-demo-link.com](https://creatorai-gamma.vercel.app)
 
 ---
 
