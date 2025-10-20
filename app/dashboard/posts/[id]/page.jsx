@@ -1,24 +1,39 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { useConvexQuery } from "@/hooks/use-convex-query";
+import { useQuery, useMutation } from "convex/react";
 import PostEditor from "@/components/post-editor";
 
 export default function EditPostPage() {
   const params = useParams();
   const postId = params.id;
+  const [userReady, setUserReady] = useState(false);
 
-  // Get post data
-  const {
-    data: post,
-    isLoading,
-    error,
-  } = useConvexQuery(api.posts.getById, { id: postId });
+  // Store user on mount
+  const storeUser = useMutation(api.users.store);
 
-  if (isLoading) {
+  useEffect(() => {
+    storeUser()
+      .then(() => setUserReady(true))
+      .catch((err) => {
+        console.error("Failed to store user:", err);
+        setUserReady(true);
+      });
+  }, [storeUser]);
+
+  // Get post data - only after user is ready
+  const post = useQuery(
+    api.posts.getById,
+    userReady ? { id: postId } : "skip"
+  );
+
+  const isLoading = post === undefined;
+  const error = post === null;
+
+  if (!userReady || isLoading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="flex items-center space-x-3">

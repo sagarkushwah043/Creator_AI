@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -23,27 +23,35 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { api } from "@/convex/_generated/api";
-import { useConvexQuery } from "@/hooks/use-convex-query";
+import { useQuery, useMutation } from "convex/react";
 import { formatDistanceToNow } from "date-fns";
 import DailyViewsChart from "@/components/daily-view-charts";
 import SeedDatabase from "@/components/SeedDatabase";
 
 export default function DashboardPage() {
-  // Fetch real data
-  const { data: analytics, isLoading: analyticsLoading } = useConvexQuery(
-    api.dashboard.getAnalytics
-  );
-  const { data: recentPosts, isLoading: postsLoading } = useConvexQuery(
-    api.dashboard.getPostsWithAnalytics,
-    { limit: 5 }
-  );
-  const { data: recentActivity, isLoading: activityLoading } = useConvexQuery(
-    api.dashboard.getRecentActivity,
-    { limit: 8 }
-  );
-  const { data: dailyViewsData, isLoading: chartLoading } = useConvexQuery(
-    api.dashboard.getDailyViews
-  );
+  const [userCreated, setUserCreated] = useState(false);
+  
+  // Store user on mount
+  const storeUser = useMutation(api.users.store);
+
+  useEffect(() => {
+    // Create user if they don't exist
+    storeUser()
+      .then(() => {
+        console.log("User stored successfully");
+        setUserCreated(true);
+      })
+      .catch((err) => {
+        console.error("Failed to store user:", err);
+        setUserCreated(true); // Still set to true to show data
+      });
+  }, [storeUser]);
+
+  // Fetch real data - only after user is created
+  const analytics = useQuery(api.dashboard.getAnalytics, userCreated ? {} : "skip");
+  const recentPosts = useQuery(api.dashboard.getPostsWithAnalytics, userCreated ? { limit: 5 } : "skip");
+  const recentActivity = useQuery(api.dashboard.getRecentActivity, userCreated ? { limit: 8 } : "skip");
+  const dailyViewsData = useQuery(api.dashboard.getDailyViews, userCreated ? {} : "skip");
 
   // Format time relative to now
   const formatTime = (timestamp) => {
@@ -51,7 +59,7 @@ export default function DashboardPage() {
   };
 
   // Loading states
-  if (analyticsLoading) {
+  if (!userCreated || analytics === undefined || dailyViewsData === undefined) {
     return (
       <div className="flex items-center justify-center min-h-96">
         <div className="text-center">
@@ -73,6 +81,10 @@ export default function DashboardPage() {
     commentsGrowth: 0,
     followersGrowth: 0,
   };
+
+  const postsLoading = recentPosts === undefined;
+  const activityLoading = recentActivity === undefined;
+  const chartLoading = dailyViewsData === undefined;
 
   return (
     <div className="space-y-8 p-4 lg:p-8">

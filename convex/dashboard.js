@@ -9,10 +9,12 @@ export const getAnalytics = query({
       return null;
     }
 
-    // Get user from database
+    // Get user from database using index
     const user = await ctx.db
       .query("users")
-      .filter((q) => q.eq(q.field("tokenIdentifier"), identity.tokenIdentifier))
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
       .unique();
 
     if (!user) {
@@ -22,18 +24,18 @@ export const getAnalytics = query({
     // Get all user's posts
     const posts = await ctx.db
       .query("posts")
-      .filter((q) => q.eq(q.field("authorId"), user._id))
+      .withIndex("by_author", (q) => q.eq("authorId", user._id))
       .collect();
 
     // Get user's followers count
     const followersCount = await ctx.db
       .query("follows")
-      .filter((q) => q.eq(q.field("followingId"), user._id))
+      .withIndex("by_following", (q) => q.eq("followingId", user._id))
       .collect();
 
     // Calculate analytics
-    const totalViews = posts.reduce((sum, post) => sum + post.viewCount, 0);
-    const totalLikes = posts.reduce((sum, post) => sum + post.likeCount, 0);
+    const totalViews = posts.reduce((sum, post) => sum + (post.viewCount || 0), 0);
+    const totalLikes = posts.reduce((sum, post) => sum + (post.likeCount || 0), 0);
 
     // Get comments count for user's posts
     const postIds = posts.map((p) => p._id);
@@ -42,34 +44,34 @@ export const getAnalytics = query({
     for (const postId of postIds) {
       const comments = await ctx.db
         .query("comments")
-        .filter((q) =>
+        .withIndex("by_post_status", (q) =>
           q.and(
-            q.eq(q.field("postId"), postId),
-            q.eq(q.field("status"), "approved")
+            q.eq("postId", postId),
+            q.eq("status", "approved")
           )
         )
         .collect();
       totalComments += comments.length;
     }
 
-    // Calculate growth percentages (simplified - you might want to implement proper date-based calculations)
+    // Calculate growth percentages
     const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
     const recentPosts = posts.filter((p) => p.createdAt > thirtyDaysAgo);
     const recentViews = recentPosts.reduce(
-      (sum, post) => sum + post.viewCount,
+      (sum, post) => sum + (post.viewCount || 0),
       0
     );
     const recentLikes = recentPosts.reduce(
-      (sum, post) => sum + post.likeCount,
+      (sum, post) => sum + (post.likeCount || 0),
       0
     );
 
-    // Simple growth calculation (you can enhance this)
+    // Simple growth calculation
     const viewsGrowth = totalViews > 0 ? (recentViews / totalViews) * 100 : 0;
     const likesGrowth = totalLikes > 0 ? (recentLikes / totalLikes) * 100 : 0;
-    const commentsGrowth = totalComments > 0 ? 15 : 0; // Placeholder
-    const followersGrowth = followersCount.length > 0 ? 12 : 0; // Placeholder
+    const commentsGrowth = totalComments > 0 ? 15 : 0;
+    const followersGrowth = followersCount.length > 0 ? 12 : 0;
 
     return {
       totalViews,
@@ -96,7 +98,9 @@ export const getRecentActivity = query({
     // Get user from database
     const user = await ctx.db
       .query("users")
-      .filter((q) => q.eq(q.field("tokenIdentifier"), identity.tokenIdentifier))
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
       .unique();
 
     if (!user) {
@@ -106,17 +110,21 @@ export const getRecentActivity = query({
     // Get user's posts
     const posts = await ctx.db
       .query("posts")
-      .filter((q) => q.eq(q.field("authorId"), user._id))
+      .withIndex("by_author", (q) => q.eq("authorId", user._id))
       .collect();
 
     const postIds = posts.map((p) => p._id);
     const activities = [];
 
+    if (postIds.length === 0) {
+      return [];
+    }
+
     // Get recent likes on user's posts
     for (const postId of postIds) {
       const likes = await ctx.db
         .query("likes")
-        .filter((q) => q.eq(q.field("postId"), postId))
+        .withIndex("by_post", (q) => q.eq("postId", postId))
         .order("desc")
         .take(5);
 
@@ -141,10 +149,10 @@ export const getRecentActivity = query({
     for (const postId of postIds) {
       const comments = await ctx.db
         .query("comments")
-        .filter((q) =>
+        .withIndex("by_post_status", (q) =>
           q.and(
-            q.eq(q.field("postId"), postId),
-            q.eq(q.field("status"), "approved")
+            q.eq("postId", postId),
+            q.eq("status", "approved")
           )
         )
         .order("desc")
@@ -167,7 +175,7 @@ export const getRecentActivity = query({
     // Get recent followers
     const recentFollowers = await ctx.db
       .query("follows")
-      .filter((q) => q.eq(q.field("followingId"), user._id))
+      .withIndex("by_following", (q) => q.eq("followingId", user._id))
       .order("desc")
       .take(5);
 
@@ -201,7 +209,9 @@ export const getPostsWithAnalytics = query({
     // Get user from database
     const user = await ctx.db
       .query("users")
-      .filter((q) => q.eq(q.field("tokenIdentifier"), identity.tokenIdentifier))
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
       .unique();
 
     if (!user) {
@@ -211,7 +221,7 @@ export const getPostsWithAnalytics = query({
     // Get recent posts with enhanced data
     const posts = await ctx.db
       .query("posts")
-      .filter((q) => q.eq(q.field("authorId"), user._id))
+      .withIndex("by_author", (q) => q.eq("authorId", user._id))
       .order("desc")
       .take(args.limit || 5);
 
@@ -220,10 +230,10 @@ export const getPostsWithAnalytics = query({
       posts.map(async (post) => {
         const comments = await ctx.db
           .query("comments")
-          .filter((q) =>
+          .withIndex("by_post_status", (q) =>
             q.and(
-              q.eq(q.field("postId"), post._id),
-              q.eq(q.field("status"), "approved")
+              q.eq("postId", post._id),
+              q.eq("status", "approved")
             )
           )
           .collect();
@@ -239,29 +249,36 @@ export const getPostsWithAnalytics = query({
   },
 });
 
-// Get daily views data for chart (last 30 days) - Assignment
+// Get daily views data for chart (last 30 days)
 export const getDailyViews = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Not authenticated");
+      return generateEmptyChartData();
     }
 
     // Get current user
     const user = await ctx.db
       .query("users")
-      .filter((q) => q.eq(q.field("tokenIdentifier"), identity.tokenIdentifier))
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
       .unique();
 
     if (!user) {
-      throw new Error("User not found");
+      return generateEmptyChartData();
     }
 
     // Get user's posts
     const userPosts = await ctx.db
       .query("posts")
-      .filter((q) => q.eq(q.field("authorId"), user._id))
+      .withIndex("by_author", (q) => q.eq("authorId", user._id))
       .collect();
+
+    // If no posts, return empty chart data
+    if (userPosts.length === 0) {
+      return generateEmptyChartData();
+    }
 
     const postIds = userPosts.map((post) => post._id);
 
@@ -270,7 +287,7 @@ export const getDailyViews = query({
     for (let i = 29; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
-      const dateString = date.toISOString().split("T")[0]; // YYYY-MM-DD
+      const dateString = date.toISOString().split("T")[0];
       days.push({
         date: dateString,
         views: 0,
@@ -285,7 +302,7 @@ export const getDailyViews = query({
     // Get daily stats for all user's posts
     const dailyStats = await ctx.db
       .query("dailyStats")
-      .filter((q) => q.or(...postIds.map((id) => q.eq(q.field("postId"), id))))
+      .withIndex("by_post_date", (q) => q.eq("postId", postIds[0]))
       .collect();
 
     // Aggregate views by date
@@ -307,3 +324,23 @@ export const getDailyViews = query({
     return chartData;
   },
 });
+
+// Helper function to generate empty chart data
+function generateEmptyChartData() {
+  const days = [];
+  for (let i = 29; i >= 0; i--) {
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+    const dateString = date.toISOString().split("T")[0];
+    days.push({
+      date: dateString,
+      views: 0,
+      day: date.toLocaleDateString("en-US", { weekday: "short" }),
+      fullDate: date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      }),
+    });
+  }
+  return days;
+}

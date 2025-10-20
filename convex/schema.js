@@ -21,6 +21,16 @@ export default defineSchema({
     postsCount: v.optional(v.number()),
     followersCount: v.optional(v.number()),
     followingCount: v.optional(v.number()),
+
+    // Daily views tracking
+    dailyViews: v.optional(
+      v.array(
+        v.object({
+          date: v.string(), // YYYY-MM-DD format
+          views: v.number(),
+        })
+      )
+    ),
   })
     .index("by_token", ["tokenIdentifier"]) // Primary auth lookup - essential
     .index("by_username", ["username"]) // Username lookup for public profiles - essential
@@ -98,7 +108,7 @@ export default defineSchema({
     .index("by_following", ["followingId"])
     .index("by_relationship", ["followerId", "followingId"]), // Prevent duplicates
 
-  // Daily analytics tracking
+  // Daily analytics tracking (for posts)
   dailyStats: defineTable({
     postId: v.id("posts"),
     date: v.string(), // YYYY-MM-DD format for easy querying

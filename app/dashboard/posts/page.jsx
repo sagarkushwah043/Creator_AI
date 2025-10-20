@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,19 +14,36 @@ import {
 } from "@/components/ui/select";
 import { PlusCircle, Search, Filter, FileText } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { useConvexQuery, useConvexMutation } from "@/hooks/use-convex-query";
+import { useQuery, useMutation } from "convex/react";
+import { useConvexMutation } from "@/hooks/use-convex-query";
 import { toast } from "sonner";
 import Link from "next/link";
 import PostCard from "@/components/post-card";
 
 export default function PostsPage() {
   const router = useRouter();
+  const [userReady, setUserReady] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
 
-  const { data: posts, isLoading } = useConvexQuery(api.posts.getUserPosts);
+  // Store user on mount
+  const storeUser = useMutation(api.users.store);
+
+  useEffect(() => {
+    storeUser()
+      .then(() => setUserReady(true))
+      .catch((err) => {
+        console.error("Failed to store user:", err);
+        setUserReady(true);
+      });
+  }, [storeUser]);
+
+  // Fetch posts - only after user is ready
+  const posts = useQuery(api.posts.getUserPosts, userReady ? {} : "skip");
   const deletePost = useConvexMutation(api.posts.deletePost);
+
+  const isLoading = posts === undefined;
 
   const filteredPosts = React.useMemo(() => {
     if (!posts) return [];
@@ -80,7 +97,7 @@ export default function PostsPage() {
     toast.info("Duplicate post feature coming soon!");
   };
 
-  if (isLoading) {
+  if (!userReady || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">

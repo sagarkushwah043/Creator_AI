@@ -1,24 +1,45 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { ArrowRight, Loader2, User } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { useConvexQuery } from "@/hooks/use-convex-query";
+import { useQuery, useMutation } from "convex/react";
 import PostEditor from "@/components/post-editor";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
 export default function CreatePostPage() {
-  // Get existing draft
-  const { data: existingDraft, isLoading: isDraftLoading } = useConvexQuery(
-    api.posts.getUserDraft
+  const [userReady, setUserReady] = useState(false);
+  
+  // Store user on mount
+  const storeUser = useMutation(api.users.store);
+
+  useEffect(() => {
+    // Create user if they don't exist
+    storeUser()
+      .then(() => setUserReady(true))
+      .catch((err) => {
+        console.error("Failed to store user:", err);
+        setUserReady(true); // Set to true anyway to show data
+      });
+  }, [storeUser]);
+
+  // Get existing draft - only after user is ready
+  const existingDraft = useQuery(
+    api.posts.getUserDraft,
+    userReady ? {} : "skip"
   );
 
-  const { data: currentUser, isLoading: userLoading } = useConvexQuery(
-    api.users.getCurrentUser
+  // Get current user - only after user is ready
+  const currentUser = useQuery(
+    api.users.getCurrentUser,
+    userReady ? {} : "skip"
   );
 
-  if (isDraftLoading || userLoading) {
+  const isDraftLoading = existingDraft === undefined;
+  const userLoading = currentUser === undefined;
+
+  if (!userReady || isDraftLoading || userLoading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="flex items-center space-x-3">

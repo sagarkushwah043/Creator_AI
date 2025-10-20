@@ -3,9 +3,14 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 
 export const useConvexQuery = (query, ...args) => {
-  const result = useQuery(query, ...args);
+  // Check if we should skip the query
+  const shouldSkip = args.length === 0 || args[0] === "skip";
+  
+  // Pass "skip" to useQuery if we should skip, otherwise pass the args
+  const result = useQuery(query, shouldSkip ? "skip" : args[0]);
+  
   const [data, setData] = useState(undefined);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!shouldSkip);
   const [error, setError] = useState(null);
 
   // Use effect to handle the state changes based on the query result
